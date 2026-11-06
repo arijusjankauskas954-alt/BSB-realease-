@@ -1,0 +1,415 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>BERULES</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#10172b;color:white;font-family:Arial;overflow-x:hidden;overflow-y:auto;touch-action:pan-y}
+button{border:0;border-radius:12px;padding:12px 18px;font-weight:bold;color:white;background:#2479ed}
+button:active{transform:scale(.94)}
+#lobby{position:relative;inset:auto;min-height:100vh;height:auto;overflow:visible;background:linear-gradient(#152b55,#10172b);display:flex;flex-direction:column;align-items:center;padding:14px 14px 45px}
+h1{font-size:42px;color:#ffe34d;text-shadow:3px 4px #9a5014;margin:8px}
+.top{display:flex;justify-content:space-between;width:100%;max-width:600px}
+.panel{background:#263b65;border:2px solid #5277a9;border-radius:18px;padding:14px;margin:10px;text-align:center;width:min(92%,420px)}
+#heroFace{font-size:100px;margin:8px}
+#heroName{font-size:24px;color:#ffe34d}
+#play{background:#f4b927;color:#392400;font-size:25px;width:85%;max-width:350px;margin:12px}
+.small{font-size:12px;color:#c9d7ed}
+#game{display:none;position:fixed;inset:0;background:#172b35;overflow:hidden}
+canvas{width:100%;height:100%;display:block;touch-action:none}
+#hud{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;pointer-events:none;font-weight:bold;text-shadow:1px 2px #000}
+#hud button{pointer-events:auto;padding:8px}
+#controls{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:end;padding:0 18px}
+.pad{width:112px;height:112px;border-radius:50%;background:#ffffff30;border:3px solid #ffffff75;position:relative;touch-action:none}
+.knob{position:absolute;width:42px;height:42px;border-radius:50%;background:#ffffffbb;left:32px;top:32px}
+.actions{display:flex;gap:12px;align-items:end}
+.action{width:72px;height:72px;border-radius:50%;background:#e64d3e;border:3px solid white;font-size:13px}
+#super{background:#eab92a;color:#382300}
+#endScreen{display:none;position:fixed;inset:0;background:#000b;align-items:center;justify-content:center;text-align:center}
+#endBox{background:#263b65;padding:25px;border-radius:20px;width:85%;max-width:350px}
+#arenaButtons{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <div class="top">
+    <b>🏆 BERULES</b>
+    <b>🪙 <span id="coins">0</span></b>
+  </div>
+  <h1>BERULES</h1>
+  <div class="panel">
+    <div class="small">YOUR FIGHTER</div>
+    <div id="heroFace">⚡</div>
+    <div id="heroName">ROCKY</div>
+    <p id="heroInfo">Balanced fighter</p>
+    <button onclick="changeHero(-1)">◀</button>
+    <button onclick="changeHero(1)">▶</button>
+    <p class="small">Choose your fighter</p>
+  </div>
+  <div class="panel">
+    <b>🏆 Trophies: <span id="trophies">0</span></b>
+    <p>Choose your arena</p>
+    <div id="arenaButtons">
+      <button onclick="setArena(0)">🌿 Jungle</button>
+      <button onclick="setArena(1)">🌋 Lava</button>
+      <button onclick="setArena(2)">❄️ Ice</button>
+    </div>
+    <p class="small" id="arenaName">Jungle Arena</p>
+  </div>
+  <button id="play" onclick="start()">▶ PLAY</button>
+  <p class="small">Move • Aim • Shoot • Defeat the boss</p>
+  <div class="panel">
+    <h2>🎮 HOW TO PLAY</h2>
+    <p>🕹️ Move with the left joystick.</p>
+    <p>🔥 Shoot enemies with FIRE.</p>
+    <p>⚡ Charge and use your SUPER.</p>
+    <p>👹 Defeat bosses every 5 waves.</p>
+  </div>
+  <p class="small">BERULES • Original fan-made game</p>
+</div>
+
+<div id="game">
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <span>❤️ <span id="health">100</span></span>
+    <span>🌊 Wave <span id="wave">1</span></span>
+    <span>🪙 <span id="gameCoins">0</span></span>
+    <button onclick="backToLobby()">✕</button>
+  </div>
+  <div id="controls">
+    <div class="pad" id="movePad"><div class="knob" id="moveKnob"></div></div>
+    <div class="actions">
+      <button class="action" id="super">SUPER</button>
+      <button class="action" id="shoot">FIRE</button>
+    </div>
+  </div>
+</div>
+
+<div id="endScreen">
+  <div id="endBox">
+    <h1 id="endTitle">GAME OVER</h1>
+    <p id="endText"></p>
+    <button onclick="backToLobby()">LOBBY</button>
+    <button onclick="start()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+const heroes=[
+ {name:"ROCKY",emoji:"⚡",hp:110,speed:3.2,damage:18},
+ {name:"SHADOW",emoji:"🌑",hp:80,speed:4.4,damage:24},
+ {name:"TANK",emoji:"🛡️",hp:180,speed:2.4,damage:14},
+ {name:"BYTE",emoji:"🤖",hp:100,speed:3.1,damage:30}
+];
+
+let coins=Number(localStorage.getItem("berulesCoins")||0);
+let trophies=Number(localStorage.getItem("berulesTrophies")||0);
+let selected=0,arena=0;
+let player,enemies=[],bullets=[];
+let running=false,wave=1,kills=0,gameCoins=0;
+let move={x:0,y:0},aim={x:1,y:0};
+let lastShot=0,superCharge=0;
+let lastTime=0;
+
+const arenaColors=["#285b43","#713a27","#426c91"];
+const arenaNames=["Jungle Arena","Lava Arena","Ice Arena"];
+
+function updateLobby(){
+ document.getElementById("coins").textContent=coins;
+ document.getElementById("trophies").textContent=trophies;
+ document.getElementById("heroFace").textContent=heroes[selected].emoji;
+ document.getElementById("heroName").textContent=heroes[selected].name;
+ document.getElementById("heroInfo").textContent=
+ "HP "+heroes[selected].hp+" • Damage "+heroes[selected].damage;
+ document.getElementById("arenaName").textContent=arenaNames[arena];
+}
+
+function changeHero(dir){
+ selected=(selected+dir+heroes.length)%heroes.length;
+ updateLobby();
+}
+
+function setArena(n){arena=n;updateLobby()}
+
+function resize(){
+ canvas.width=innerWidth*devicePixelRatio;
+ canvas.height=innerHeight*devicePixelRatio;
+}
+
+addEventListener("resize",resize);
+resize();
+
+function start(){
+ document.getElementById("lobby").style.display="none";
+ document.getElementById("game").style.display="block";
+ document.getElementById("endScreen").style.display="none";
+
+ resize();
+
+ const h=heroes[selected];
+ player={
+  x:canvas.width/2,y:canvas.height/2,
+  hp:h.hp,maxHp:h.hp,speed:h.speed,
+  damage:h.damage,r:20
+ };
+
+ enemies=[];bullets=[];
+ wave=1;kills=0;gameCoins=0;superCharge=0;
+ move={x:0,y:0};
+ running=true;
+
+ spawnWave();
+ lastTime=performance.now();
+ requestAnimationFrame(loop);
+}
+
+function backToLobby(){
+ running=false;
+ document.getElementById("game").style.display="none";
+ document.getElementById("endScreen").style.display="none";
+ document.getElementById("lobby").style.display="flex";
+ updateLobby();
+ window.scrollTo(0,0);
+}
+
+function spawnWave(){
+ let count=2+wave*2;
+ for(let i=0;i<count;i++){
+  const side=Math.floor(Math.random()*4);
+  let x=side===0?30:side===1?canvas.width-30:Math.random()*canvas.width;
+  let y=side===2?30:side===3?canvas.height-30:Math.random()*canvas.height;
+  let boss=wave%5===0&&i===0;
+
+  enemies.push({
+   x,y,hp:boss?300:45+wave*8,
+   maxHp:boss?300:45+wave*8,
+   speed:boss?1.1:1.2+Math.random()*.5,
+   damage:boss?15:7,
+   r:boss?32:17,boss
+  });
+ }
+ document.getElementById("wave").textContent=wave;
+}
+
+function shoot(){
+ if(!running||performance.now()-lastShot<300)return;
+ lastShot=performance.now();
+
+ let target=null,best=Infinity;
+ for(const e of enemies){
+  let d=Math.hypot(e.x-player.x,e.y-player.y);
+  if(d<best){best=d;target=e}
+ }
+ if(target){
+  let dx=target.x-player.x,dy=target.y-player.y;
+  let d=Math.hypot(dx,dy)||1;
+  aim={x:dx/d,y:dy/d};
+ }
+
+ bullets.push({
+  x:player.x,y:player.y,
+  vx:aim.x*8,vy:aim.y*8,
+  damage:player.damage
+ });
+}
+
+function useSuper(){
+ if(!running||superCharge<100)return;
+ superCharge=0;
+ for(const e of enemies)e.hp-=110;
+ player.hp=Math.min(player.maxHp,player.hp+25);
+}
+
+function loop(time){
+ if(!running)return;
+ let dt=Math.min((time-lastTime)/16,2);
+ lastTime=time;
+ update(dt);
+ draw();
+ if(running)requestAnimationFrame(loop);
+}
+
+function update(dt){
+ if(!running)return;
+
+ const speed=player.speed*dt;
+ player.x+=move.x*speed;
+ player.y+=move.y*speed;
+ player.x=Math.max(20,Math.min(canvas.width-20,player.x));
+ player.y=Math.max(20,Math.min(canvas.height-20,player.y));
+
+ for(const b of bullets){
+  b.x+=b.vx*dt;b.y+=b.vy*dt;
+  for(const e of enemies){
+   if(Math.hypot(e.x-b.x,e.y-b.y)<e.r+7&&b.damage>0){
+    e.hp-=b.damage;
+    b.damage=0;
+    superCharge=Math.min(100,superCharge+12);
+   }
+  }
+ }
+
+ bullets=bullets.filter(b=>b.damage>0&&b.x>-20&&b.y>-20&&b.x<canvas.width+20&&b.y<canvas.height+20);
+
+ for(const e of enemies){
+  let dx=player.x-e.x,dy=player.y-e.y,d=Math.hypot(dx,dy)||1;
+  e.x+=dx/d*e.speed*dt;
+  e.y+=dy/d*e.speed*dt;
+  if(d<e.r+player.r)player.hp-=e.damage*.025*dt;
+ }
+
+ const dead=enemies.filter(e=>e.hp<=0);
+ if(dead.length){
+  kills+=dead.length;
+  gameCoins+=dead.reduce((a,e)=>a+(e.boss?25:5),0);
+  enemies=enemies.filter(e=>e.hp>0);
+ }
+
+ if(enemies.length===0){
+  wave++;
+  spawnWave();
+ }
+
+ if(player.hp<=0){endGame();return}
+
+ document.getElementById("health").textContent=Math.max(0,Math.ceil(player.hp));
+ document.getElementById("gameCoins").textContent=gameCoins;
+ document.getElementById("super").textContent="SUPER "+Math.floor(superCharge)+"%";
+}
+
+function draw(){
+ const w=canvas.width,h=canvas.height;
+ ctx.fillStyle=arenaColors[arena];
+ ctx.fillRect(0,0,w,h);
+
+ ctx.globalAlpha=.15;
+ ctx.strokeStyle="white";ctx.lineWidth=2;
+ for(let x=0;x<w;x+=55){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke()}
+ for(let y=0;y<h;y+=55){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+ ctx.globalAlpha=1;
+
+ for(const b of bullets){
+  ctx.fillStyle="#ffe65a";
+  ctx.beginPath();ctx.arc(b.x,b.y,7,0,Math.PI*2);ctx.fill();
+ }
+
+ for(const e of enemies){
+  ctx.fillStyle=e.boss?"#a522cf":"#e94d50";
+  ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+
+  ctx.fillStyle="white";
+  ctx.fillRect(e.x-e.r,e.y-e.r-12,e.r*2,5);
+  ctx.fillStyle="#55e85b";
+  ctx.fillRect(e.x-e.r,e.y-e.r-12,e.r*2*Math.max(0,e.hp/e.maxHp),5);
+
+  ctx.font=e.boss?"26px Arial":"20px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(e.boss?"👹":"👾",e.x,e.y+8);
+ }
+
+ ctx.fillStyle="#ffe34d";
+ ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+ ctx.font="25px Arial";ctx.textAlign="center";
+ ctx.fillText(heroes[selected].emoji,player.x,player.y+9);
+
+ ctx.strokeStyle="white";ctx.lineWidth=3;
+ ctx.beginPath();
+ ctx.moveTo(player.x,player.y);
+ ctx.lineTo(player.x+aim.x*35,player.y+aim.y*35);
+ ctx.stroke();
+}
+
+function endGame(){
+ running=false;
+ trophies+=kills;
+ coins+=gameCoins;
+
+ localStorage.setItem("berulesCoins",coins);
+ localStorage.setItem("berulesTrophies",trophies);
+
+ document.getElementById("endTitle").textContent="GAME OVER";
+ document.getElementById("endText").textContent=
+ "Wave "+wave+" • Defeated "+kills+" enemies • Earned "+gameCoins+" coins";
+
+ document.getElementById("endScreen").style.display="flex";
+}
+
+// Movement joystick
+const pad=document.getElementById("movePad");
+const knob=document.getElementById("moveKnob");
+let padId=null;
+
+function movePointer(e){
+ const r=pad.getBoundingClientRect();
+ let dx=e.clientX-(r.left+r.width/2);
+ let dy=e.clientY-(r.top+r.height/2);
+ const max=36,d=Math.hypot(dx,dy)||1;
+
+ if(d>max){dx=dx/d*max;dy=dy/d*max}
+ move={x:dx/max,y:dy/max};
+ knob.style.transform=`translate(${dx}px,${dy}px)`;
+}
+
+pad.addEventListener("pointerdown",e=>{
+ padId=e.pointerId;
+ pad.setPointerCapture(padId);
+ movePointer(e);
+});
+
+pad.addEventListener("pointermove",e=>{
+ if(e.pointerId===padId)movePointer(e);
+});
+
+function stopMove(){
+ padId=null;
+ move={x:0,y:0};
+ knob.style.transform="translate(0,0)";
+}
+
+pad.addEventListener("pointerup",stopMove);
+pad.addEventListener("pointercancel",stopMove);
+
+document.getElementById("shoot").addEventListener("pointerdown",e=>{
+ e.preventDefault();shoot();
+});
+
+document.getElementById("super").addEventListener("pointerdown",e=>{
+ e.preventDefault();useSuper();
+});
+
+// Keyboard controls
+const keys={};
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false});
+
+function keyboardLoop(){
+ if(!running)return;
+
+ let x=0,y=0;
+ if(keys.w||keys.arrowup)y=-1;
+ if(keys.s||keys.arrowdown)y=1;
+ if(keys.a||keys.arrowleft)x=-1;
+ if(keys.d||keys.arrowright)x=1;
+
+ if(x||y)move={x,y};
+ if(keys[" "])shoot();
+
+ requestAnimationFrame(keyboardLoop);
+}
+
+const originalStart=start;
+start=function(){
+ originalStart();
+ keyboardLoop();
+};
+
+updateLobby();
+</script>
+</body>
+</html>
